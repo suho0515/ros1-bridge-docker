@@ -1,0 +1,28 @@
+version: '3'
+
+services:
+  # ROS1 Core
+  ros1_core:
+    image: ros:noetic-ros-core
+    container_name: ros1_core
+    network_mode: "host"
+    environment:
+      - ROS_MASTER_URI=http://localhost:11311
+      - ROS_HOSTNAME=localhost
+    command: bash -c "roscore"
+
+  # ROS1 Bridge 컨테이너
+  ros1_bridge:
+    build:
+      context: .
+      dockerfile: Dockerfile.bridge
+    container_name: ros1_bridge
+    network_mode: "host"
+    environment:
+      - ROS_MASTER_URI=http://localhost:11311
+      - ROS_HOSTNAME=localhost
+    volumes:
+      - ./bridge_ws:/bridge_ws_host
+    command: bash -c "/bridge_launch.sh"
+    depends_on:
+      - ros1_core 

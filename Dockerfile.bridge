@@ -1,0 +1,101 @@
+FROM ubuntu:22.04
+
+# 키보드 입력을 받지 않도록 환경 변수 설정
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Asia/Seoul
+
+# 언어 설정 (UTF-8)
+RUN apt-get update && apt-get install -y locales && \
+    locale-gen en_US en_US.UTF-8 && \
+    update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 && \
+    rm -rf /var/lib/apt/lists/*
+ENV LANG=en_US.UTF-8
+
+# Add the ROS 2 apt repository
+RUN apt-get update \
+    && apt install -y software-properties-common \
+    && add-apt-repository universe
+
+RUN apt-get update && apt-get install -y curl
+
+RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
+
+RUN echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null
+
+RUN apt-get update && apt-get install -y \
+    python3-flake8-docstrings \
+    python3-pip \
+    python3-pytest-cov \
+    ros-dev-tools
+
+RUN apt-get update && apt-get install -y \
+    python3-flake8-blind-except \
+    python3-flake8-builtins \
+    python3-flake8-class-newline \
+    python3-flake8-comprehensions \
+    python3-flake8-deprecated \
+    python3-flake8-import-order \
+    python3-flake8-quotes \
+    python3-pytest-repeat \
+    python3-pytest-rerunfailures
+
+# ROS2 Humble 워크스페이스 생성 및 소스 코드 가져오기
+RUN mkdir -p /ros2_ws/src
+WORKDIR /ros2_ws
+RUN wget https://raw.githubusercontent.com/ros2/ros2/humble/ros2.repos && \
+    vcs import src < ros2.repos
+
+RUN apt-get update && apt-get upgrade -y
+
+# rosdep 초기화 및 업데이트
+RUN rosdep init && rosdep update
+
+RUN rosdep install --from-paths src --ignore-src -y --skip-keys "fastcdr rti-connext-dds-6.0.1 urdfdom_headers"
+
+# ROS2 Humble 빌드
+RUN colcon build --symlink-install
+
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    git \
+    python3-flake8 \
+    python3-flake8-blind-except \
+    python3-flake8-builtins \
+    python3-flake8-class-newline \
+    python3-flake8-comprehensions \
+    python3-flake8-deprecated \
+    python3-flake8-docstrings \
+    python3-flake8-import-order \
+    python3-flake8-quotes \
+    python3-pip \
+    python3-pytest \
+    python3-pytest-cov \
+    python3-pytest-repeat \
+    python3-pytest-rerunfailures \
+    python3-rosdep \
+    python3-setuptools \
+    wget
+
+RUN python3 -m pip install -U colcon-common-extensions vcstool
+
+# ROS1 upstream 패키지 설치
+RUN apt-get update && apt-get install -y \
+    ros-core-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# ros1_bridge 워크스페이스 생성
+RUN mkdir -p /bridge_ws/src
+WORKDIR /bridge_ws/src
+RUN git clone https://github.com/ros2/ros1_bridge.git
+
+# ros1_bridge 빌드
+WORKDIR /bridge_ws
+RUN . /ros2_ws/install/setup.sh && \
+    colcon build
+
+# 브릿지 실행을 위한 시작 스크립트 추가
+COPY bridge_launch.sh /bridge_launch.sh
+RUN chmod +x /bridge_launch.sh
+
+CMD ["/bridge_launch.sh"] 
