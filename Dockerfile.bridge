@@ -55,6 +55,8 @@ RUN rosdep install --from-paths src --ignore-src -y --skip-keys "fastcdr rti-con
 # ROS2 Humble 빌드
 RUN colcon build --symlink-install
 
+RUN bash -c "source /ros2_ws/install/local_setup.bash"
+
 RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
